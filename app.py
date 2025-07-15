@@ -27,12 +27,11 @@ if "user_email" not in st.session_state:
             st.error(f"Login failed: {result}")
             st.stop()
     else:
-        # current_url = st.request.url
-        # params = urlencode({"redirect": current_url})
-        # login_redirect_url = f"{LOGIN_URL}?{params}"
+        redirect_url = "https://codemaster-gdg-yqv2aiqvmq-ew.a.run.app"
+        login_redirect_url = f"{LOGIN_URL}?redirect={redirect_url}"
 
         st.markdown(f"""
-            <a href="{LOGIN_URL}">
+            <a href="{login_redirect_url}">
                 <button style="font-size:16px;padding:10px 20px;">Login with Google</button>
             </a>
         """, unsafe_allow_html=True)
