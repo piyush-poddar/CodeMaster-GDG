@@ -92,7 +92,8 @@ if user_projects:
     selected_project = st.selectbox(
         "Choose from your previous projects:",
         options=user_projects,
-        format_func=lambda x: x["project_name"]
+        format_func=lambda x: x["project_name"],
+        placeholder="Select a project"
     )
     project_id = selected_project["id"]
     default_project_name = selected_project["project_name"]
@@ -104,6 +105,10 @@ if user_projects:
         dt = datetime.fromisoformat(r.get("reviewed_at")).astimezone(pytz.timezone("Asia/Kolkata"))
         st.markdown(f"**🕒 Reviewed At:** {dt.strftime('%B %d, %Y – %I:%M %p')}")
         st.markdown(f"**🔖 Source Type:** `{r.get('source_type')}`")
+        if r.get("guidelines"):
+            st.markdown(f"**📋 Guidelines:**\n\n{r.get('guidelines')}")
+        else:
+            st.markdown("**📋 Guidelines:** Not provided")
         st.markdown(f"**📋 Feedback:**\n\n{r.get('feedback')}")
         st.markdown("---")
     else:

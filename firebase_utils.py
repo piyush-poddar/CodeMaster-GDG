@@ -41,11 +41,12 @@ def create_project_if_not_exists(user_uid, project_name):
     })
     return doc_ref.id
 
-def add_review_to_project(user_uid, project_id, feedback, source_type):
+def add_review_to_project(user_uid, project_id, feedback, source_type, guidelines=None):
     db = firestore.client(database_id=DATABASE_ID)
     review_doc = {
         "feedback": feedback,
         "source_type": source_type,
+        "guidelines": guidelines,
         "reviewed_at": datetime.now(timezone.utc).isoformat()
     }
     reviews_ref = (
