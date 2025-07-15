@@ -9,28 +9,28 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 # Prompt template
 def get_code_review_prompt(code: str, guidelines: str = "") -> str:
     return f"""
-You are a senior software engineering professor helping students with project submissions.
+    💻 **Student Code**:
+    {code}
 
-Please review the following code as per general software engineering best practices and/or the provided guidelines.
+    ---
+    📋 **Project Guidelines**:
+    {guidelines if guidelines else "No specific guidelines provided."}
 
-Give feedback in the following format:
-1. ✅ **Good Practices Used**
-2. ❌ **Issues, Bugs, or Bad Practices**
-3. 💡 **Suggestions for Improvement**
-4. 📈 **Time and Space Complexity (if applicable)**
+    ---
 
-If project guidelines are provided, use them to make your suggestions more specific.
+    You are a senior software engineering professor helping students with project submissions.
 
----
+    Please review the following code as per general software engineering best practices and/or the provided guidelines.
 
-📋 **Project Guidelines**:
-{guidelines if guidelines else "No specific guidelines provided."}
+    Give feedback in the following format:
+    1. ✅ **Good Practices Used**
+    2. ❌ **Issues, Bugs, or Bad Practices**
+    3. 💡 **Suggestions for Improvement**
+    4. 📈 **Time and Space Complexity (only if applicable and related to code)**
 
----
-
-💻 **Student Code**:
-{code}
-"""
+    If project guidelines are provided, use them to make your suggestions more specific.
+    Directly start with the feedback without any additional preamble.
+    """
 
 # 📄 Paste Mode (dicts with filename + content)
 def get_code_feedback_from_texts(code_blocks: list[dict], guidelines: str = "") -> str:
