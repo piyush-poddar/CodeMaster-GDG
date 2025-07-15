@@ -20,36 +20,46 @@ def verify_token_and_store_user(id_token: str):
     except Exception as e:
         return False, str(e)
 
-def save_project_review(user_uid, project_name, feedback, source_type="upload"):
-    """
-    Save a project review for a given user into Firestore.
+def ensure_user_document(user_uid, email_id):
+    db = firestore.client(database_id=DATABASE_ID)
+    user_ref = db.collection("users").document(user_uid)
+    user_ref.set({"email_id": email_id}, merge=True)
 
-    Args:
-        user_uid (str): Firebase Authentication UID of the logged-in user.
-        project_name (str): Name of the project.
-        feedback (str): AI feedback string.
-        source_type (str): One of 'upload', 'paste', or 'github'.
-    """
-    try:
-        db = firestore.client(database_id=DATABASE_ID)
+def create_project_if_not_exists(user_uid, project_name):
+    db = firestore.client(database_id=DATABASE_ID)
+    projects_ref = db.collection("users").document(user_uid).collection("projects")
 
-        review_doc = {
-            "project_name": project_name,
-            "feedback": feedback,
-            "source_type": source_type,
-            "reviewed_at": datetime.now(timezone.utc).isoformat(),
-        }
+    # Check if a project with the same name already exists
+    existing = projects_ref.where("project_name", "==", project_name).get()
+    if existing:
+        return existing[0].id  # Return existing project_id
 
-        # Add the document to the user's projects subcollection
-        db.collection("users").document(user_uid).collection("projects").add(review_doc)
-        st.success(f"✅ Project '{project_name}' review saved successfully!")
+    # Else, create a new one
+    doc_ref = projects_ref.document()
+    doc_ref.set({
+        "project_name": project_name
+    })
+    return doc_ref.id
 
-    except Exception as e:
-        st.error(f"❌ Failed to save review: {str(e)}")
+def add_review_to_project(user_uid, project_id, feedback, source_type):
+    db = firestore.client(database_id=DATABASE_ID)
+    review_doc = {
+        "feedback": feedback,
+        "source_type": source_type,
+        "reviewed_at": datetime.now(timezone.utc).isoformat()
+    }
+    reviews_ref = (
+        db.collection("users")
+          .document(user_uid)
+          .collection("projects")
+          .document(project_id)
+          .collection("reviews")
+    )
+    reviews_ref.add(review_doc)
 
 def get_user_projects(user_uid):
     """
-    Fetch all projects for a given user from Firestore, sorted by most recent.
+    Fetch all projects for a given user from Firestore.
 
     Args:
         user_uid (str): The UID of the logged-in user.
@@ -60,53 +70,55 @@ def get_user_projects(user_uid):
     try:
         db = firestore.client(database_id=DATABASE_ID)
         projects_ref = db.collection("users").document(user_uid).collection("projects")
-
-        # Fetch all documents and convert to list
         docs = projects_ref.stream()
 
-        # Extract and sort manually by reviewed_at timestamp
         projects = []
         for doc in docs:
             data = doc.to_dict()
-            reviewed_at = data.get("reviewed_at")
             projects.append({
                 "id": doc.id,
-                "project_name": data.get("project_name", "Unnamed Project"),
-                "reviewed_at": reviewed_at
+                "project_name": data.get("project_name", "Unnamed Project")
             })
 
-        # Sort by reviewed_at descending (most recent first)
-        projects.sort(key=lambda x: x["reviewed_at"] or "", reverse=True)
-
-        # Return only id and project_name (you can return full dict if needed)
-        return [{"id": p["id"], "project_name": p["project_name"]} for p in projects]
+        return projects
 
     except Exception as e:
         print("Error fetching user projects:", e)
         return []
+
     
-def get_last_three_reviews(user_uid):
+def get_last_three_reviews_for_project(user_uid: str, project_id: str):
     """
-    Retrieve the latest 3 project reviews for a specific user UID from Firestore.
+    Retrieve the latest 3 review entries for a specific project under a user's account.
+
+    Args:
+        user_uid (str): Firebase UID of the user.
+        project_id (str): The ID of the project document.
+
+    Returns:
+        List[Dict]: List of last 3 review entries for the project.
     """
     try:
         db = firestore.client(database_id=DATABASE_ID)
-        projects_ref = db.collection(user_uid)  # collection name is user_uid (as per your structure)
-        docs = projects_ref.stream()
+        reviews_ref = db.collection("users").document(user_uid).collection("projects").document(project_id).collection("reviews")
 
-        # Convert documents to list of dicts and sort by timestamp (desc)
-        projects = []
+        # Get the last 3 reviews ordered by reviewed_at descending
+        docs = reviews_ref.order_by("reviewed_at", direction=firestore.Query.DESCENDING).limit(3).stream()
+
+        reviews = []
         for doc in docs:
             data = doc.to_dict()
             data["id"] = doc.id
-            projects.append(data)
+            reviews.append(data)
 
-        # Sort by reviewed_at timestamp (most recent first)
-        projects.sort(key=lambda x: x.get("reviewed_at", ""), reverse=True)
-
-        # Return top 3
-        return projects[:3]
+        return reviews
 
     except Exception as e:
-        print("Error fetching reviews:", e)
+        print(f"Error fetching reviews for project {project_id}:", e)
         return []
+
+if __name__ == "__main__":
+    init_firebase()
+    print("Firebase initialized.")
+    reviews = get_last_three_reviews_for_project("vk506Oa7uuZHtBdAP91Cjt1egb12", "JgXNIDA5xxKRJoQy9Lrg")
+    print("Last 3 reviews:", reviews)
