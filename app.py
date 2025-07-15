@@ -39,11 +39,11 @@ if "user_email" not in st.session_state:
             st.session_state.user_email = result # Store the verified email in session state
             st.success(f"✅ Logged in as {result}")
             # Clear the 'token' query parameter from the URL to prevent re-processing on refresh
-            st.experimental_set_query_params(token=None)
+            st.query_params.clear()
             st.rerun() # Rerun the app to update the UI and show authenticated content
         else:
             st.error(f"Login failed: {result}")
-            st.experimental_set_query_params(token=None) # Clear token on failure
+            st.query_params.clear() # Clear token on failure
             st.stop() # Stop execution after login failure
     else:
         # If no token in URL, display the login button linking to the external login page
