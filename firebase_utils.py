@@ -8,6 +8,8 @@ def init_firebase():
     if not firebase_admin._apps:
         firebase_admin.initialize_app()
 
+DATABASE_ID = "codemaster-firestore"
+
 # Verify ID token passed from frontend
 def verify_token_and_store_user(id_token: str):
     try:
@@ -29,7 +31,7 @@ def save_project_review(user_uid, project_name, feedback, source_type="upload"):
         source_type (str): One of 'upload', 'paste', or 'github'.
     """
     try:
-        db = firestore.client()
+        db = firestore.client(database_id=DATABASE_ID)
 
         review_doc = {
             "project_name": project_name,
@@ -56,7 +58,7 @@ def get_user_projects(user_uid):
         List[Dict]: A list of dictionaries with 'id' and 'project_name'.
     """
     try:
-        db = firestore.client()
+        db = firestore.client(database_id=DATABASE_ID)
         projects_ref = db.collection("users").document(user_uid).collection("projects")
 
         # Fetch all documents and convert to list
@@ -88,7 +90,7 @@ def get_last_three_reviews(user_uid):
     Retrieve the latest 3 project reviews for a specific user UID from Firestore.
     """
     try:
-        db = firestore.client()
+        db = firestore.client(database_id=DATABASE_ID)
         projects_ref = db.collection(user_uid)  # collection name is user_uid (as per your structure)
         docs = projects_ref.stream()
 
