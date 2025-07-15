@@ -1,3 +1,4 @@
+# -------------------- app.py --------------------
 import streamlit as st
 from review_engine import (
     get_code_feedback_from_texts,
@@ -7,25 +8,22 @@ from review_engine import (
 from firebase_utils import (
     init_firebase,
     verify_token_and_store_user,
-    ensure_user_document,
     get_user_projects,
-    create_project_if_not_exists,
-    add_review_to_project,
-    get_last_three_reviews_for_project,
+    save_project_review,
+    get_last_review_for_project
 )
+from datetime import datetime
+import pytz
 
-# Constants
+init_firebase()
+
 LOGIN_URL = "https://codemaster-login-yqv2aiqvmq-ew.a.run.app"
 STREAMLIT_APP_URL = "https://codemaster-gdg-yqv2aiqvmq-ew.a.run.app"
 
-# Firebase Initialization
-init_firebase()
 st.set_page_config(page_title="AI Code Review Assistant", layout="centered")
 st.title("💻 AI Code Review Assistant")
 
-# -------------------------------
-# 🔐 Authentication
-# -------------------------------
+# ---------------------- Auth ----------------------
 if "user_email" not in st.session_state:
     st.subheader("🔐 Login Required")
     query_params = st.query_params
@@ -36,7 +34,6 @@ if "user_email" not in st.session_state:
         verified, result = verify_token_and_store_user(id_token_string)
         if verified:
             st.session_state.user_email = result
-            st.success(f"✅ Logged in as {result}")
             st.query_params.clear()
             st.rerun()
         else:
@@ -59,12 +56,7 @@ if st.button("Logout"):
     st.session_state.clear()
     st.rerun()
 
-user_uid = st.session_state.get("user_uid")
-ensure_user_document(user_uid, st.session_state["user_email"])
-
-# -------------------------------
-# 🧠 Init Legacy State
-# -------------------------------
+# ------------------- Legacy Fix -------------------
 def init_code_blocks():
     if "code_blocks" not in st.session_state:
         st.session_state.code_blocks = [{"filename": "main.py", "content": ""}]
@@ -73,60 +65,59 @@ def init_code_blocks():
 
 init_code_blocks()
 
-# -------------------------------
-# 📂 Project Picker / New Project
-# -------------------------------
-user_projects = get_user_projects(user_uid)
+# -------------------- Project UI -------------------
+user_uid = st.session_state.get("user_uid")
+projects = get_user_projects(user_uid)
+
 selected_project = None
-project_id = None
+default_project_name = ""
+new_project_mode = True
 
-if user_projects:
-    st.subheader("📁 Select an Existing Project")
-    selected_project = st.selectbox(
-        "Choose a project:",
-        options=user_projects,
-        format_func=lambda x: x["project_name"],
-    )
-    project_id = selected_project["id"]
-    st.markdown("### 📝 Last 3 Reviews:")
-    for review in get_last_three_reviews_for_project(user_uid, project_id):
-        st.markdown(f"**🕒 Reviewed At**: {review.get('reviewed_at', '')}")
-        st.markdown(f"**🔖 Source Type**: {review.get('source_type', '')}")
-        st.markdown(f"**💬 Feedback**:\n\n{review.get('feedback', '')}")
-        st.markdown("---")
+if projects:
+    st.subheader("📂 Your Projects")
+    selected_project = st.selectbox("Choose a project to view:", projects, format_func=lambda x: x["project_name"])
 
-    st.markdown("## 🔁 Re-review or Submit New Code")
-    default_project_name = selected_project["project_name"]
-else:
-    st.subheader("🆕 New Project")
-    default_project_name = st.text_input("Enter Project Name", key="new_project_name")
+    last_review = get_last_review_for_project(user_uid, selected_project["id"])
+    if last_review:
+        st.markdown("### 📝 Last Review")
+        readable_time = datetime.fromisoformat(last_review["reviewed_at"].replace("Z", "+00:00")).astimezone(
+            pytz.timezone("Asia/Kolkata")
+        ).strftime("%d %B %Y, %I:%M %p")
+        st.markdown(f"🕒 Reviewed on: **{readable_time}**")
+        st.markdown(last_review["feedback"])
 
-# -------------------------------
-# 🔘 Mode Selection
-# -------------------------------
-st.markdown("### 🚀 Choose Submission Mode")
+    cols = st.columns(2)
+    if cols[0].button("🔁 Review Same Project"):
+        default_project_name = selected_project["project_name"]
+        project_id = selected_project["id"]
+        new_project_mode = False
+    if cols[1].button("🆕 Review New Project"):
+        new_project_mode = True
 
+if new_project_mode:
+    default_project_name = st.text_input("📝 Enter New Project Name", placeholder="e.g., Face Detection App")
+
+# -------------------- Mode Selector --------------------
+st.markdown("### 🚀 Choose Code Submission Method")
 if "mode" not in st.session_state:
     st.session_state.mode = "upload"
 
 cols = st.columns(3)
-if cols[0].button("📁 Upload", type="primary" if st.session_state.mode == "upload" else "secondary"):
+if cols[0].button("📁 Upload Files", type="primary" if st.session_state.mode == "upload" else "secondary"):
     st.session_state.mode = "upload"
     st.rerun()
-if cols[1].button("✍️ Paste", type="primary" if st.session_state.mode == "paste" else "secondary"):
+if cols[1].button("✍️ Paste Code", type="primary" if st.session_state.mode == "paste" else "secondary"):
     st.session_state.mode = "paste"
     st.rerun()
-if cols[2].button("🌐 GitHub", type="primary" if st.session_state.mode == "github" else "secondary"):
+if cols[2].button("🌐 GitHub Repo", type="primary" if st.session_state.mode == "github" else "secondary"):
     st.session_state.mode = "github"
     st.rerun()
 
-# -------------------------------
-# 🧾 Input Code
-# -------------------------------
+# -------------------- Input Section --------------------
 uploaded_files, repo_url = None, None
 
 if st.session_state.mode == "upload":
-    uploaded_files = st.file_uploader("Upload your code", type=["py", "cpp", "java", "js", "txt", "zip"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload your code files or zip", type=["py", "cpp", "java", "js", "txt", "zip"], accept_multiple_files=True)
 
 elif st.session_state.mode == "paste":
     for i in range(len(st.session_state.code_blocks)):
@@ -137,23 +128,19 @@ elif st.session_state.mode == "paste":
             st.session_state.code_blocks.pop(i)
             st.rerun()
         block["content"] = st.text_area(f"Code: {block['filename']}", value=block["content"], height=200, key=f"code_{i}")
-    if st.button("➕ Add Code Block"):
+    if st.button("➕ Add Another Block"):
         st.session_state.code_blocks.append({"filename": f"file{len(st.session_state.code_blocks)+1}.py", "content": ""})
 
 elif st.session_state.mode == "github":
-    repo_url = st.text_input("GitHub repo URL", placeholder="https://github.com/username/repo")
+    repo_url = st.text_input("Paste your GitHub repo URL", placeholder="https://github.com/username/repo")
     if repo_url and not repo_url.strip().startswith("https://github.com/"):
         st.warning("⚠️ Invalid GitHub URL")
 
-# -------------------------------
-# 📋 Optional Guidelines
-# -------------------------------
+# -------------------- Guidelines --------------------
 st.subheader("📋 Paste Evaluation Criteria (Optional)")
 guidelines_input = st.text_area("Paste rubric or grading guidelines", height=150)
 
-# -------------------------------
-# 🔍 Review Button
-# -------------------------------
+# -------------------- Review Logic --------------------
 if st.button("🔍 Review My Code"):
     feedback = None
     source_type = st.session_state.mode
@@ -185,6 +172,10 @@ if st.button("🔍 Review My Code"):
         st.markdown("### 💬 AI Feedback")
         st.markdown(feedback)
 
-        if default_project_name.strip():
-            pid = project_id or create_project_if_not_exists(user_uid, default_project_name.strip())
-            add_review_to_project(user_uid, pid, feedback, source_type)
+        if st.button("💾 Save Review"):
+            if default_project_name.strip():
+                save_project_review(user_uid, default_project_name.strip(), feedback, source_type)
+                st.success("Saved! Refreshing...")
+                st.rerun()
+            else:
+                st.warning("❗ Please enter a project name before saving.")

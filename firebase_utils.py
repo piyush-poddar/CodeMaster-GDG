@@ -103,7 +103,7 @@ def get_last_three_reviews_for_project(user_uid: str, project_id: str):
         reviews_ref = db.collection("users").document(user_uid).collection("projects").document(project_id).collection("reviews")
 
         # Get the last 3 reviews ordered by reviewed_at descending
-        docs = reviews_ref.order_by("reviewed_at", direction=firestore.Query.DESCENDING).limit(3).stream()
+        docs = reviews_ref.order_by("reviewed_at", direction=firestore.Query.DESCENDING).limit(1).stream()
 
         reviews = []
         for doc in docs:
