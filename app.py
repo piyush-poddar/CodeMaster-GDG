@@ -10,58 +10,33 @@ from firebase_utils import init_firebase, verify_token_and_store_user
 
 init_firebase()
 
+LOGIN_URL = "https://codemaster-login-yqv2aiqvmq-ew.a.run.app"
+
 if "user_email" not in st.session_state:
     st.subheader("🔐 Login Required")
     st.markdown("Please log in with your Google account to continue.")
 
-    login_html = """
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script>
-      const firebaseConfig = {
-        apiKey: "AIzaSyCEGpcB6IFnkFhD0iK38L7Rq-Hck7Rzz60",
-        authDomain: "gdg-apps-2025.firebaseapp.com",
-        projectId: "gdg-apps-2025"
-      };
-      firebase.initializeApp(firebaseConfig);
-
-      const provider = new firebase.auth.GoogleAuthProvider();
-
-      // Automatically handle redirect result
-      firebase.auth().getRedirectResult().then((result) => {
-        if (result.user) {
-          result.user.getIdToken().then((token) => {
-            window.location.href = window.location.pathname + "?token=" + token;
-          });
-        }
-      }).catch((error) => {
-        console.error("Redirect login error:", error.message);
-        alert("Login failed: " + error.message);
-      });
-
-      function loginWithGoogle() {
-        firebase.auth().signInWithRedirect(provider);
-      }
-    </script>
-    <button onclick="loginWithGoogle()">Login with Google</button>
-    """
-
-    components.html(login_html, height=100)
-
-    # Handle token returned from frontend after redirect
     token_param = st.query_params.get("token")
     if token_param:
         verified, result = verify_token_and_store_user(token_param[0])
         if verified:
             st.success(f"✅ Logged in as {result}")
-            st.experimental_set_query_params()  # clear token from URL
+            st.experimental_set_query_params()  # Clear token
             st.rerun()
         else:
             st.error(f"Login failed: {result}")
             st.stop()
     else:
-        st.stop()
+        # current_url = st.request.url
+        # params = urlencode({"redirect": current_url})
+        # login_redirect_url = f"{LOGIN_URL}?{params}"
 
+        st.markdown(f"""
+            <a href="{LOGIN_URL}">
+                <button style="font-size:16px;padding:10px 20px;">Login with Google</button>
+            </a>
+        """, unsafe_allow_html=True)
+        st.stop()
 else:
     st.markdown(f"✅ Logged in as **{st.session_state['user_email']}**")
 
