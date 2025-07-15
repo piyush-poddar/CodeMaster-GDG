@@ -96,33 +96,38 @@ if user_projects:
         placeholder="Select a project",
         index=None
     )
-    project_id = selected_project["id"]
-    default_project_name = selected_project["project_name"]
+    
+    if selected_project:
+        project_id = selected_project["id"]
+        default_project_name = selected_project["project_name"]
 
-    reviews = get_last_three_reviews_for_project(user_uid, project_id)
-    if reviews:
-        st.markdown("### 💬 Last Review")
-        r = reviews[0]
-        dt = datetime.fromisoformat(r.get("reviewed_at")).astimezone(pytz.timezone("Asia/Kolkata"))
-        st.markdown(f"**🕒 Reviewed At:** {dt.strftime('%B %d, %Y – %I:%M %p')}")
-        st.markdown(f"**🔖 Source Type:** `{r.get('source_type')}`")
-        if r.get("guidelines"):
-            st.markdown(f"**📋 Guidelines:**\n\n{r.get('guidelines')}")
+        reviews = get_last_three_reviews_for_project(user_uid, project_id)
+        if reviews:
+            st.markdown("### 💬 Last Review")
+            r = reviews[0]
+            dt = datetime.fromisoformat(r.get("reviewed_at")).astimezone(pytz.timezone("Asia/Kolkata"))
+            st.markdown(f"**🕒 Reviewed At:** {dt.strftime('%B %d, %Y – %I:%M %p')}")
+            st.markdown(f"**🔖 Source Type:** `{r.get('source_type')}`")
+            if r.get("guidelines"):
+                st.markdown(f"**📋 Guidelines:**\n\n{r.get('guidelines')}")
+            else:
+                st.markdown("**📋 Guidelines:** Not provided")
+            st.markdown(f"**📋 Feedback:**\n\n{r.get('feedback')}")
+            st.markdown("---")
         else:
-            st.markdown("**📋 Guidelines:** Not provided")
-        st.markdown(f"**📋 Feedback:**\n\n{r.get('feedback')}")
-        st.markdown("---")
+            st.info("No reviews found for this project.")
+
+        st.subheader("🛠️ What would you like to do?")
+        action = st.radio("Choose an action", ["🔁 Review this Project", "🆕 Create New Project"])
+
+        if action == "🆕 Create New Project":
+            default_project_name = st.text_input("Enter New Project Name", key="new_project_name")
+            project_id = None  # Reset project_id for new project
     else:
-        st.info("No reviews found for this project.")
-
-    st.subheader("🛠️ What would you like to do?")
-    action = st.radio("Choose an action", ["🔁 Review this Project", "🆕 Create New Project"])
-
-    if action == "🆕 Create New Project":
-        default_project_name = st.text_input("Enter New Project Name", key="new_project_name")
-        project_id = None  # Reset project_id for new project
+        default_project_name = st.text_input("Enter Project Name", key="new_project_name")
+        project_id = None
 else:
-    st.subheader("🆕 New User – Create Your First Project")
+    st.subheader("🆕 New User - Create Your First Project")
     default_project_name = st.text_input("Enter Project Name", key="new_project_name")
 
 # -------------------------------
