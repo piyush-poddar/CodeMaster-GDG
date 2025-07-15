@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Firebase Login Popup Component</title>
+  <meta charset="UTF-8" />
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: transparent; /* Make background transparent for seamless integration */
+    }
+    button {
+      background-color: #4285F4; /* Google Blue */
+      color: white;
+      padding: 12px 25px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.3s ease;
+      margin-bottom: 10px; /* Space for status message */
+    }
+    button:hover {
+      background-color: #357ae8;
+    }
+    .status-message {
+      font-size: 0.9em;
+      color: #555;
+      min-height: 20px; /* Ensure space for message */
+    }
+  </style>
+</head>
+<body>
+  <button id="google-login-button">
+    <img src="https://img.icons8.com/color/20/000000/google-logo.png" alt="Google logo"/>
+    Login with Google
+  </button>
+  <div id="status-display" class="status-message"></div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+  <script>
+    // These values will be replaced by the Streamlit Python code
+    const firebaseConfig = {
+      apiKey: "YOUR_FIREBASE_API_KEY_PLACEHOLDER",
+      authDomain: "YOUR_FIREBASE_AUTH_DOMAIN_PLACEHOLDER",
+      projectId: "YOUR_FIREBASE_PROJECT_ID_PLACEHOLDER"
+    };
+
+    // The redirect URL for the Streamlit app itself
+    // This will be passed from Streamlit Python
+    let streamlitRedirectUrl = "DEFAULT_STREAMLIT_REDIRECT_URL_PLACEHOLDER";
+
+    let app;
+    let auth;
+    let provider;
+
+    const statusDisplay = document.getElementById('status-display');
+
+    // Function to get query parameters from the current URL (for the iframe)
+    function getQueryParam(name) {
+        name = name.replace(/[\[\]]/g, '\\$&');
+        var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+            results = regex.exec(window.location.href);
+        if (!results) return null;
+        if (!results[2]) return '';
+        return decodeURIComponent(results[2].replace(/\+/g, ' '));
+    }
+
+    // Initialize Firebase and set up listeners
+    function initFirebaseAndListeners() {
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            provider = new firebase.auth.GoogleAuthProvider();
+
+            // Get the redirect URL from the iframe's URL query parameters
+            const urlParamRedirect = getQueryParam('redirect_url');
+            if (urlParamRedirect) {
+                streamlitRedirectUrl = urlParamRedirect;
+            }
+
+            document.getElementById('google-login-button').addEventListener('click', () => {
+                statusDisplay.innerText = "Opening Google login popup...";
+                auth.signInWithPopup(provider)
+                    .then((result) => {
+                        const user = result.user;
+                        return user.getIdToken();
+                    })
+                    .then((idToken) => {
+                        statusDisplay.innerText = "Login successful! Redirecting...";
+                        // Redirect the TOP-LEVEL window (Streamlit app) with the token
+                        // This causes the Streamlit app to reload and process the token
+                        window.top.location.href = `${streamlitRedirectUrl}?token=${idToken}`;
+                    })
+                    .catch((error) => {
+                        console.error("Popup login error:", error);
+                        let userFacingError = error.message;
+                        if (error.code === 'auth/popup-closed-by-user') {
+                            userFacingError = 'Login popup was closed. Please try again.';
+                        } else if (error.code === 'auth/cancelled-popup-request') {
+                            userFacingError = 'Login cancelled (another popup request was made).';
+                        } else if (error.code === 'auth/popup-blocked') {
+                            userFacingError = 'Login popup was blocked by your browser. Please allow popups for this site.';
+                        }
+                        statusDisplay.innerText = `Login failed: ${userFacingError}`;
+                    });
+            });
+            statusDisplay.innerText = "Click 'Login with Google' to start.";
+
+        } catch (e) {
+            console.error("Firebase initialization error:", e);
+            statusDisplay.innerText = `Firebase initialization failed: ${e.message}`;
+        }
+    }
+
+    // Call init when the DOM is ready
+    document.addEventListener('DOMContentLoaded', initFirebaseAndListeners);
+  </script>
+</body>
+</html>

@@ -5,39 +5,93 @@ from review_engine import (
     get_code_feedback_from_files,
     get_code_feedback_from_github_repo,
 )
-
+import os
 from firebase_utils import init_firebase, verify_token_and_store_user
 
 init_firebase()
 
-LOGIN_URL = "https://codemaster-login-yqv2aiqvmq-ew.a.run.app"
+FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "AIzaSyCEGpcB6IFnkFhD0iK38L7Rq-Hck7Rzz60") # Replace with st.secrets["FIREBASE_API_KEY"]
+FIREBASE_AUTH_DOMAIN = os.getenv("FIREBASE_AUTH_DOMAIN", "gdg-apps-2025.firebaseapp.com") # Replace with st.secrets["FIREBASE_AUTH_DOMAIN"]
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "gdg-apps-2025") # Replace with st.secrets["FIREBASE_PROJECT_ID"]
 
+# The URL of your deployed Streamlit app. This is crucial for the redirect back.
+# If running locally, it's typically "http://localhost:8501"
+# If deployed, it's your app's public URL.
+STREAMLIT_APP_URL = "https://codemaster-gdg-yqv2aiqvmq-ew.a.run.app" # Your actual Streamlit app URL
+
+# Path to your HTML component file
+HTML_COMPONENT_FILE = "firebase_login_popup_component.html"
+
+# Load the HTML content
+try:
+    with open(HTML_COMPONENT_FILE, "r") as f:
+        html_template = f.read()
+except FileNotFoundError:
+    st.error(f"Error: {HTML_COMPONENT_FILE} not found. Please ensure it's in the same directory.")
+    st.stop()
+
+# Inject Firebase config and Streamlit redirect URL into the HTML
+# This makes the HTML component dynamic and reusable
+html_content_with_config = html_template.replace(
+    "YOUR_FIREBASE_API_KEY_PLACEHOLDER", FIREBASE_API_KEY
+).replace(
+    "YOUR_FIREBASE_AUTH_DOMAIN_PLACEHOLDER", FIREBASE_AUTH_DOMAIN
+).replace(
+    "YOUR_FIREBASE_PROJECT_ID_PLACEHOLDER", FIREBASE_PROJECT_ID
+).replace(
+    "DEFAULT_STREAMLIT_REDIRECT_URL_PLACEHOLDER", STREAMLIT_APP_URL
+)
+
+# --- Streamlit App Logic ---
+st.set_page_config(page_title="Streamlit Firebase Auth", layout="centered")
+
+st.title("Streamlit App with Firebase Login")
+
+# Check if user is already logged in via session state
 if "user_email" not in st.session_state:
     st.subheader("🔐 Login Required")
     st.markdown("Please log in with your Google account to continue.")
 
-    token_param = st.query_params.get("token")
+    # Check for token in URL query parameters (after popup redirect)
+    query_params = st.query_params
+    token_param = query_params.get("token")
+
     if token_param:
-        verified, result = verify_token_and_store_user(token_param[0])
+        # If a token is found in the URL, verify it
+        st.info("Verifying login token...")
+        verified, result = verify_token_and_store_user(token_param) # token_param is already a string
         if verified:
+            st.session_state.user_email = result # Store email in session state
             st.success(f"✅ Logged in as {result}")
-            st.experimental_set_query_params()  # Clear token
-            st.rerun()
+            # Clear the token from the URL to prevent re-processing on refresh
+            # st.experimental_set_query_params() # This would clear all params
+            # To clear only 'token', you might need a custom component or a more complex redirect
+            # For now, a simple rerun after setting session state is sufficient.
+            st.rerun() # Rerun to remove the login prompt and show content
         else:
             st.error(f"Login failed: {result}")
-            st.stop()
+            # Clear the token from the URL if verification failed
+            st.experimental_set_query_params(token=None) # Set token to None to clear it
+            st.stop() # Stop execution after error
     else:
-        redirect_url = "https://codemaster-gdg-yqv2aiqvmq-ew.a.run.app"
-        login_redirect_url = f"{LOGIN_URL}?redirect={redirect_url}"
-
-        st.markdown(f"""
-            <a href="{login_redirect_url}">
-                <button style="font-size:16px;padding:10px 20px;">Login with Google</button>
-            </a>
-        """, unsafe_allow_html=True)
-        st.stop()
+        # If no token in URL, display the login button (embedded HTML component)
+        st.write("Click the button below to log in:")
+        # Embed the HTML component. The height is adjusted for the button and status message.
+        components.html(
+            html_content_with_config,
+            height=120, # Adjust height as needed for the button and status message
+            scrolling=False,
+            #key="firebase_login_popup_component" # Unique key for the component
+        )
+        st.stop() # Stop execution until user logs in or token is processed
 else:
+    # User is logged in, display content
     st.markdown(f"✅ Logged in as **{st.session_state['user_email']}**")
+    st.button("Logout", on_click=lambda: st.session_state.clear()) # Clear session state to log out
+    st.write("---")
+    st.subheader("Your Secure Application Content")
+    st.write("This section is only visible to authenticated users.")
+    st.write("You can now build your application logic here.")
 
 # ------------------------------
 # 🧠 Fix legacy state (block = str)
