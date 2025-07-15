@@ -93,7 +93,8 @@ if user_projects:
         "Choose from your previous projects:",
         options=user_projects,
         format_func=lambda x: x["project_name"],
-        placeholder="Select a project"
+        placeholder="Select a project",
+        index=None
     )
     project_id = selected_project["id"]
     default_project_name = selected_project["project_name"]
