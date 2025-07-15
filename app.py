@@ -10,82 +10,57 @@ from firebase_utils import init_firebase, verify_token_and_store_user
 
 init_firebase()
 
-FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY", "AIzaSyCEGpcB6IFnkFhD0iK38L7Rq-Hck7Rzz60") # Replace with st.secrets["FIREBASE_API_KEY"]
-FIREBASE_AUTH_DOMAIN = os.getenv("FIREBASE_AUTH_DOMAIN", "gdg-apps-2025.firebaseapp.com") # Replace with st.secrets["FIREBASE_AUTH_DOMAIN"]
-FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "gdg-apps-2025") # Replace with st.secrets["FIREBASE_PROJECT_ID"]
+LOGIN_URL = "https://codemaster-login-yqv2aiqvmq-ew.a.run.app" # <--- IMPORTANT: REPLACE THIS with your actual login page URL
 
-# The URL of your deployed Streamlit app. This is crucial for the redirect back.
-# If running locally, it's typically "http://localhost:8501"
-# If deployed, it's your app's public URL.
-STREAMLIT_APP_URL = "https://codemaster-gdg-yqv2aiqvmq-ew.a.run.app" # Your actual Streamlit app URL
+# 2. The URL of your deployed Streamlit app itself.
+# This is where the login page will redirect the user back to after successful authentication.
+STREAMLIT_APP_URL = "https://codemaster-gdg-yqv2aiqvmq-ew.a.run.app" # <--- IMPORTANT: REPLACE THIS with your actual Streamlit app URL
 
-# Path to your HTML component file
-HTML_COMPONENT_FILE = "firebase_login_popup_component.html"
-
-# Load the HTML content
-try:
-    with open(HTML_COMPONENT_FILE, "r") as f:
-        html_template = f.read()
-except FileNotFoundError:
-    st.error(f"Error: {HTML_COMPONENT_FILE} not found. Please ensure it's in the same directory.")
-    st.stop()
-
-# Inject Firebase config and Streamlit redirect URL into the HTML
-# This makes the HTML component dynamic and reusable
-html_content_with_config = html_template.replace(
-    "YOUR_FIREBASE_API_KEY_PLACEHOLDER", FIREBASE_API_KEY
-).replace(
-    "YOUR_FIREBASE_AUTH_DOMAIN_PLACEHOLDER", FIREBASE_AUTH_DOMAIN
-).replace(
-    "YOUR_FIREBASE_PROJECT_ID_PLACEHOLDER", FIREBASE_PROJECT_ID
-).replace(
-    "DEFAULT_STREAMLIT_REDIRECT_URL_PLACEHOLDER", STREAMLIT_APP_URL
-)
-
-# --- Streamlit App Logic ---
-st.set_page_config(page_title="Streamlit Firebase Auth", layout="centered")
+st.set_page_config(page_title="Streamlit App with Firebase Auth", layout="centered")
 
 st.title("Streamlit App with Firebase Login")
 
-# Check if user is already logged in via session state
+# --- Streamlit App Login Logic ---
 if "user_email" not in st.session_state:
     st.subheader("🔐 Login Required")
     st.markdown("Please log in with your Google account to continue.")
 
-    # Check for token in URL query parameters (after popup redirect)
+    # Check for token in URL query parameters (after redirect from login_page.html)
     query_params = st.query_params
     token_param = query_params.get("token")
 
     if token_param:
-        # If a token is found in the URL, verify it
         st.info("Verifying login token...")
-        verified, result = verify_token_and_store_user(token_param) # token_param is already a string
+        # st.query_params.get returns a list, so get the first element
+        id_token_string = token_param[0] if isinstance(token_param, list) else token_param
+
+        verified, result = verify_token_and_store_user(id_token_string)
         if verified:
-            st.session_state.user_email = result # Store email in session state
+            st.session_state.user_email = result # Store the verified email in session state
             st.success(f"✅ Logged in as {result}")
-            # Clear the token from the URL to prevent re-processing on refresh
-            # st.experimental_set_query_params() # This would clear all params
-            # To clear only 'token', you might need a custom component or a more complex redirect
-            # For now, a simple rerun after setting session state is sufficient.
-            st.rerun() # Rerun to remove the login prompt and show content
+            # Clear the 'token' query parameter from the URL to prevent re-processing on refresh
+            st.experimental_set_query_params(token=None)
+            st.rerun() # Rerun the app to update the UI and show authenticated content
         else:
             st.error(f"Login failed: {result}")
-            # Clear the token from the URL if verification failed
-            st.experimental_set_query_params(token=None) # Set token to None to clear it
-            st.stop() # Stop execution after error
+            st.experimental_set_query_params(token=None) # Clear token on failure
+            st.stop() # Stop execution after login failure
     else:
-        # If no token in URL, display the login button (embedded HTML component)
-        st.write("Click the button below to log in:")
-        # Embed the HTML component. The height is adjusted for the button and status message.
-        components.html(
-            html_content_with_config,
-            height=120, # Adjust height as needed for the button and status message
-            scrolling=False,
-            #key="firebase_login_popup_component" # Unique key for the component
-        )
+        # If no token in URL, display the login button linking to the external login page
+        # We pass the current Streamlit app's URL as a 'redirect' parameter to the login page
+        login_redirect_url = f"{LOGIN_URL}?redirect={STREAMLIT_APP_URL}"
+
+        st.markdown(f"""
+            <a href="{login_redirect_url}" target="_self">  <button style="font-size:16px;padding:10px 20px;background-color:#4285F4;color:white;border:none;border-radius:5px;cursor:pointer;
+                               display: inline-flex; align-items: center; gap: 10px;">
+                    <img src="https://img.icons8.com/color/20/000000/google-logo.png" alt="Google logo"/>
+                    Login with Google
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
         st.stop() # Stop execution until user logs in or token is processed
 else:
-    # User is logged in, display content
+    # User is logged in, display protected content
     st.markdown(f"✅ Logged in as **{st.session_state['user_email']}**")
     st.button("Logout", on_click=lambda: st.session_state.clear()) # Clear session state to log out
     st.write("---")
