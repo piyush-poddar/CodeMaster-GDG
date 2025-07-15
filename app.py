@@ -1,5 +1,4 @@
 import streamlit as st
-from datetime import datetime
 from review_engine import (
     get_code_feedback_from_texts,
     get_code_feedback_from_files,
@@ -14,12 +13,18 @@ from firebase_utils import (
     add_review_to_project,
     get_last_three_reviews_for_project,
 )
+from datetime import datetime
+import pytz
 
-# Constants
+# -------------------------------
+# 🔧 Constants
+# -------------------------------
 LOGIN_URL = "https://codemaster-login-yqv2aiqvmq-ew.a.run.app"
 STREAMLIT_APP_URL = "https://codemaster-gdg-yqv2aiqvmq-ew.a.run.app"
 
-# Init Firebase
+# -------------------------------
+# 🚀 Init
+# -------------------------------
 init_firebase()
 st.set_page_config(page_title="AI Code Review Assistant", layout="centered")
 st.title("💻 AI Code Review Assistant")
@@ -64,7 +69,7 @@ user_uid = st.session_state.get("user_uid")
 ensure_user_document(user_uid, st.session_state["user_email"])
 
 # -------------------------------
-# 🧠 Init Legacy State
+# 🧠 Init legacy state
 # -------------------------------
 def init_code_blocks():
     if "code_blocks" not in st.session_state:
@@ -75,51 +80,49 @@ def init_code_blocks():
 init_code_blocks()
 
 # -------------------------------
-# 🔄 Project Selection Logic
+# 📂 Project Picker or New Project
 # -------------------------------
 user_projects = get_user_projects(user_uid)
 selected_project = None
 project_id = None
-is_new_project = False
 default_project_name = ""
 
 if user_projects:
-    st.subheader("📁 You have previous reviews")
+    st.subheader("📁 Select a Project")
     selected_project = st.selectbox(
-        "Select a project",
+        "Choose from your previous projects:",
         options=user_projects,
-        format_func=lambda x: x["project_name"],
-        key="existing_project_selector"
+        format_func=lambda x: x["project_name"]
     )
     project_id = selected_project["id"]
-    latest_review = get_last_three_reviews_for_project(user_uid, project_id)
-    if latest_review:
-        latest_review = latest_review[0]
-        st.markdown("### 💬 Last Feedback")
-        ts = latest_review.get("reviewed_at", "")
-        if ts:
-            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-            st.markdown(f"🕒 **Reviewed At**: {dt.strftime('%d %b %Y, %I:%M %p')}")
-        st.markdown(f"🔖 **Source Type**: `{latest_review.get('source_type', '')}`")
-        st.markdown(f"🧠 **Feedback**:\n\n{latest_review.get('feedback', '')}")
-        st.markdown("---")
+    default_project_name = selected_project["project_name"]
 
-    cols = st.columns(2)
-    if cols[0].button("🔁 Review Same Project"):
-        default_project_name = selected_project["project_name"]
-        is_new_project = False
-    if cols[1].button("🆕 Review a New Project"):
-        is_new_project = True
-        default_project_name = st.text_input("Enter new project name", key="new_project_name")
+    reviews = get_last_three_reviews_for_project(user_uid, project_id)
+    if reviews:
+        st.markdown("### 💬 Last Review")
+        r = reviews[0]
+        dt = datetime.fromisoformat(r.get("reviewed_at")).astimezone(pytz.timezone("Asia/Kolkata"))
+        st.markdown(f"**🕒 Reviewed At:** {dt.strftime('%B %d, %Y – %I:%M %p')}")
+        st.markdown(f"**🔖 Source Type:** `{r.get('source_type')}`")
+        st.markdown(f"**📋 Feedback:**\n\n{r.get('feedback')}")
+        st.markdown("---")
+    else:
+        st.info("No reviews found for this project.")
+
+    st.subheader("🛠️ What would you like to do?")
+    action = st.radio("Choose an action", ["🔁 Review this Project", "🆕 Create New Project"])
+
+    if action == "🆕 Create New Project":
+        default_project_name = st.text_input("Enter New Project Name", key="new_project_name")
+        project_id = None  # Reset project_id for new project
 else:
-    st.subheader("🆕 New User")
-    is_new_project = True
+    st.subheader("🆕 New User – Create Your First Project")
     default_project_name = st.text_input("Enter Project Name", key="new_project_name")
 
 # -------------------------------
 # 🔘 Mode Selection
 # -------------------------------
-st.markdown("### 🚀 Choose Submission Mode")
+st.markdown("### 🚀 Choose Submission Method")
 if "mode" not in st.session_state:
     st.session_state.mode = "upload"
 
@@ -135,9 +138,10 @@ if cols[2].button("🌐 GitHub", type="primary" if st.session_state.mode == "git
     st.rerun()
 
 # -------------------------------
-# 🧾 Code Input Section
+# 🧾 Input Code
 # -------------------------------
 uploaded_files, repo_url = None, None
+
 if st.session_state.mode == "upload":
     uploaded_files = st.file_uploader("Upload your code", type=["py", "cpp", "java", "js", "txt", "zip"], accept_multiple_files=True)
 
@@ -165,10 +169,10 @@ st.subheader("📋 Paste Evaluation Criteria (Optional)")
 guidelines_input = st.text_area("Paste rubric or grading guidelines", height=150)
 
 # -------------------------------
-# 🔍 Review Button & Feedback
+# 🔍 Review Code
 # -------------------------------
-feedback = None
 if st.button("🔍 Review My Code"):
+    feedback = None
     source_type = st.session_state.mode
 
     if st.session_state.mode == "paste":
@@ -194,21 +198,26 @@ if st.button("🔍 Review My Code"):
                 feedback = get_code_feedback_from_github_repo(repo_url.strip(), guidelines_input)
 
     if feedback:
-        st.session_state.last_feedback = feedback
-        st.session_state.last_source_type = source_type
         st.success("✅ Review Complete!")
         st.markdown("### 💬 AI Feedback")
         st.markdown(feedback)
 
+        st.session_state.last_feedback = feedback
+        st.session_state.last_source_type = source_type
+        st.session_state.last_project_name = default_project_name.strip()
+        st.session_state.last_project_id = project_id
+
 # -------------------------------
 # 💾 Save Review Button
 # -------------------------------
-if "last_feedback" in st.session_state and st.button("💾 Save This Review"):
-    project_name = default_project_name.strip()
-    if not project_name:
-        st.warning("Please enter a valid project name to save the review.")
-    else:
-        pid = project_id or create_project_if_not_exists(user_uid, project_name)
+if "last_feedback" in st.session_state:
+    if st.button("💾 Save This Review"):
+        name = st.session_state.last_project_name
+        pid = st.session_state.last_project_id or create_project_if_not_exists(user_uid, name)
         add_review_to_project(user_uid, pid, st.session_state.last_feedback, st.session_state.last_source_type)
-        st.success("✅ Review saved successfully!")
+        st.success("🎉 Review Saved!")
+        # Clear last_* and reload
+        for key in ["last_feedback", "last_source_type", "last_project_name", "last_project_id"]:
+            if key in st.session_state:
+                del st.session_state[key]
         st.rerun()
