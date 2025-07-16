@@ -53,7 +53,9 @@ if "user_email" not in st.session_state:
         login_redirect_url = f"{LOGIN_URL}?redirect={STREAMLIT_APP_URL}"
         st.markdown(f"""
             <a href="{login_redirect_url}" target="_self">
-                <button style="font-size:16px;padding:10px 20px;background-color:#4285F4;color:white;border:none;border-radius:5px;cursor:pointer;">
+                <button style="font-size:16px;padding:10px 20px;background-color:#4285F4;color:white;border:none;border-radius:5px;cursor:pointer;
+                               display: inline-flex; align-items: center; gap: 10px;">
+                    <img src="https://img.icons8.com/color/20/000000/google-logo.png" alt="Google logo"/>
                     Login with Google
                 </button>
             </a>

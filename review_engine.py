@@ -28,8 +28,10 @@ def get_code_review_prompt(code: str, guidelines: str = "") -> str:
     3. 💡 **Suggestions for Improvement**
     4. 📈 **Time and Space Complexity (only if applicable and related to code)**
 
-    If project guidelines are provided, strictly use them to make your suggestions more specific.
+    If project guidelines are provided, **STRICTLY** use them to make your suggestions more specific to adhere the guidelines.
     Directly start with the feedback without any additional preamble.
+    Remember that you do not have to rewrite the entire code, just provide feedback.
+    Give small snippets of code only in Suggestions for Improvement if necessary.
     """
 
 # 📄 Paste Mode (dicts with filename + content)
